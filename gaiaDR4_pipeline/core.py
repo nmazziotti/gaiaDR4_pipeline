@@ -1,15 +1,13 @@
-import astropy 
+from . import modeling
 import arviz as az
-import argparse
 import time 
 from datetime import datetime
 from pathlib import Path
-import numpy as np 
 import pandas as pd 
 
-from . import modeling, utils
+from . import utils
 
-def run_pipeline(output_dir, jobID, t_binned, w_binned, sig_w_binned, pf_binned, psi_binned, mstar):
+def run_pipeline(output_dir, jobID, sourceID, t_binned, w_binned, sig_w_binned, pf_binned, psi_binned, mstar):
     begin = datetime.now().strftime("%a %b %d %H:%M:%S %Y")
 
     start_pipeline = time.time()
@@ -18,14 +16,12 @@ def run_pipeline(output_dir, jobID, t_binned, w_binned, sig_w_binned, pf_binned,
     for d in ['idata', 'csv', 'plots', 'out']:
         Path(save_dir / d).mkdir(parents=True, exist_ok=True)
   
-    Path(output_dir / f"timestamps/{jobID}").mkdir(parents=True, exist_ok=True)
+    #Path(output_dir / f"timestamps/{jobID}").mkdir(parents=True, exist_ok=True)
     
     print(f"Starting run {jobID}...")
 
-    t_ast_yr, psi, plx_factor, ast_obs, ast_err = t['obs_time'].data, t['scan_angle'].data, t['parallax_factor'].data, t['along_scan_obs'].data, t['along_scan_error'].data
-
     # Initial RUWE check
-    ruwe, mu, sigma_mu = utils.check_ruwe(t_ast_yr = t_ast_yr, psi = psi, plx_factor = plx_factor, ast_obs = ast_obs, ast_err = ast_err)
+    ruwe, mu, sigma_mu = utils.check_ruwe(t_ast_yr = t_binned/365.25, psi = psi_binned, plx_factor = pf_binned, ast_obs = w_binned * 1e3, ast_err = sig_w_binned * 1e3)
     print(f'RUWE: {ruwe}')
 
     # Build models
@@ -34,7 +30,7 @@ def run_pipeline(output_dir, jobID, t_binned, w_binned, sig_w_binned, pf_binned,
 
     start_map = time.time()
 
-    single_initvals, binary_initvals = utils.generate_initvals_from_p0(single_model, binary_model, sourceID, pipeline_dir, mstar)
+    single_initvals, binary_initvals = utils.generate_initvals_from_p0(single_model, binary_model, sourceID, output_dir, mstar)
     print(binary_initvals)
     # single_initvals, binary_initvals, metadata = generate_initvals_from_grid_search(single_model, binary_model, t_ast_yr, psi, plx_factor, ast_obs, ast_err, t.meta['MSTAR'], cores=4)
     # generate_initvals(single_model, binary_model, t_ast_yr, psi, plx_factor, ast_obs, ast_err, mstar, c_funcs)
@@ -70,40 +66,3 @@ def run_pipeline(output_dir, jobID, t_binned, w_binned, sig_w_binned, pf_binned,
 
     end = datetime.now().strftime("%a %b %d %H:%M:%S %Y")
     print('Pipeline run complete.')
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-s", "--sourceID", type=str)
-    parser.add_argument("-j", "--jobID", type=int)
-    parser.add_argument("-a", "--arrayID", type=int)
-    parser.add_argument("-m", "--model", type=str)
-
-    args = parser.parse_args()
-
-    sourceID = args.sourceID
-    jobID = args.jobID
-    arrayID = args.arrayID
-    model = args.model
-    version='dr4'
-
-    user_dir = Path('/work/hdd/bfoc/nm78/')
-    data_dir = user_dir / "gaiamock_data"
-
-    filename = f'EpochAstrometry-Gaia_{version.upper()}_{sourceID}.fits'
-    print(filename)
-    t = astropy.table.Table.read(data_dir / filename)
-
-    pipeline_dir = "OHP_targets"
-    output_dir = user_dir / f"{pipeline_dir}/runs/"
-
-    t_ast_yr, psi, plx_factor, ast_obs, ast_err = t['obs_time'].data, t['scan_angle'].data, t['parallax_factor'].data, t['along_scan_obs'].data, t['along_scan_error'].data
-
-    t_binned, w_binned, sig_w_binned, pf_binned, psi_binned = t_ast_yr * 365.25, ast_obs * 1e-3, ast_err * 1e-3, plx_factor, psi
-    t_binned = np.array(t_binned, dtype=np.float64)
-    w_binned = np.array(w_binned, dtype=np.float64)
-    sig_w_binned = np.array(sig_w_binned, dtype=np.float64)
-    pf_binned = np.array(pf_binned, dtype=np.float64)
-    psi_binned = np.array(psi_binned, dtype=np.float64)
-
-    mstar = 0.35
-    run_pipeline(output_dir, jobID, t_binned, w_binned, sig_w_binned, pf_binned, psi_binned, mstar)

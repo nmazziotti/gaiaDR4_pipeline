@@ -142,8 +142,8 @@ def load_astrometry(sourceID, version='dr4'):
     t = Table.read(data_dir / filename)
     return t 
 
-def load_p0(out_dir, sourceID):
-    p0 = np.loadtxt(user_dir / f'/{out_dir}/runs/{sourceID}/optimize/grid_search_p0.txt')
+def load_p0(parent_dir, sourceID):
+    p0 = np.loadtxt(parent_dir / f'grid_search_files/{sourceID}/grid_search_p0.txt')
     return p0
 
 def load_grid_search_res(out_dir, sourceID):
@@ -188,12 +188,16 @@ def generate_metadata(ra_off, dec_off, pmra, pmdec, plx, mstar, **kwargs):
         elif thiele_innes.issubset(provided):
             A, B, F, G = kwargs["A"], kwargs["B"], kwargs["F"], kwargs["G"]
             a0, Omega, omega, incl = thiele_innes_to_campbell(A, B, F, G)
+        else:
+            raise ValueError("Must provide either Campbell (a0, Omega, omega, incl) or Thiele-Innes (A, B, F, G) parameters")
 
         plus = (Omega + omega)/2
         minus = (Omega - omega)/2
 
         if "mp" not in kwargs:
             mp = solve_planet_mass(mstar, period, a0/plx)
+        else:
+            mp = kwargs["mp"]
         sma = (mstar + mp)**(1/3) * (period/365.25)**(2/3)
 
         h = ecc * np.sin(omega)
@@ -283,7 +287,11 @@ def convert_p0_to_metadata(out_dir, sourceID, mstar):
     log_p, ecc, phi, ra_off, pmra, dec_off, pmdec, plx, B, G, A, F = p0
     a0, Omega, omega, incl = thiele_innes_to_campbell(A, B, F, G)
     period = np.exp(log_p)
-    metadata = generate_metadata(ra_off, dec_off, pmra, pmdec, plx, mstar, period, ecc, phi, a0, Omega, omega, incl)
+    metadata = generate_metadata(
+        ra_off, dec_off, pmra, pmdec, plx, mstar,
+        period=period, ecc=ecc, phi=phi,
+        a0=a0, Omega=Omega, omega=omega, incl=incl
+    )
     return metadata 
 
 def generate_initvals_from_p0(single_model, binary_model, sourceID, out_dir, mstar):
