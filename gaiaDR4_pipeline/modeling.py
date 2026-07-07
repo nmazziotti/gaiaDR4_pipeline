@@ -92,11 +92,11 @@ def make_progress_callback(total_draws, tune, chain_count, bar_width=40):
 def single_star_base(t_binned, w_binned, sig_w_binned, pf_binned, psi_binned, add_jitter=False):
     with pm.Model() as single_model:
         # Stellar position offset
-        # delta_ra = pm.Normal('delta_ra', mu=0., sigma=1.) # as
-        # delta_dec = pm.Normal('delta_dec', mu=0., sigma=1.) # as
+        delta_ra = pm.Normal('delta_ra', mu=0., sigma=1.) # as
+        delta_dec = pm.Normal('delta_dec', mu=0., sigma=1.) # as
 
-        delta_ra = pm.Uniform('delta_ra', lower=-1e-3, upper=1e-3) # as
-        delta_dec = pm.Uniform('delta_dec', lower=-1e-3, upper=1e-3) # as
+        # delta_ra = pm.Uniform('delta_ra', lower=-1e-3, upper=1e-3) # as
+        # delta_dec = pm.Uniform('delta_dec', lower=-1e-3, upper=1e-3) # as
         
         # Stellar proper motion
         pm_ra = pm.Normal('pm_ra', mu=0., sigma=1) # as/yr
@@ -291,7 +291,6 @@ def build_planet_star_model_campbell_TI(t_binned, w_binned, sig_w_binned, pf_bin
 
 # Fitting models 
 def run_mcmc(model, **kwargs):
-    print("\nFitting Single Star Model...")
     with model:
         idata = pm.sample(**kwargs)
         
@@ -308,6 +307,16 @@ def run_mcmc(model, **kwargs):
 # Model Comparison 
 def compare_models_loo(idata_single, idata_binary):
     """Compare models using Leave-One-Out Cross-Validation"""
+
+     # Compare using arviz.compare
+    print(f"\nDETAILED COMPARISON (using az.compare):")
+    comparison_dict = {
+        "Single_Star": idata_single,
+        "Planet_Star": idata_binary
+    }
+    
+    comp_df = az.compare(comparison_dict)
+    print(comp_df)
         
     # Compute LOO for both models
     loo_single = az.loo(idata_single)
@@ -319,29 +328,19 @@ def compare_models_loo(idata_single, idata_binary):
     print("-"*60)
     
     elpd_single = loo_single.elpd_loo
-    se_single = loo_single.dse
+    se_single = loo_single.se
     
     elpd_binary = loo_binary.elpd_loo
-    se_binary = loo_binary.dse
+    se_binary = loo_binary.se
     
     elpd_diff = elpd_binary - elpd_single
-    se_diff = np.sqrt(se_single**2 + se_binary**2)
+    dse = np.sqrt(comp_df["dse"][0]**2 + comp_df["dse"][1]**2)
     
     print(f"Single Star Model ELPD: {elpd_single:.2f} ± {se_single:.2f}")
     print(f"Planet-Star Model ELPD: {elpd_binary:.2f} ± {se_binary:.2f}")
-    print(f"Difference (Binary - Single): {elpd_diff:.2f} ± {se_diff:.2f}")
-    
-    # Compare using arviz.compare
-    print(f"\nDETAILED COMPARISON (using az.compare):")
-    comparison_dict = {
-        "Single_Star": idata_single,
-        "Planet_Star": idata_binary
-    }
-    
-    comp_df = az.compare(comparison_dict)
-    print(comp_df)
+    print(f"Difference (Binary - Single): {elpd_diff:.2f} ± {dse:.2f}")
 
-    SNR = elpd_diff/se_diff 
+    SNR = elpd_diff/dse
     print(f"LOO SNR: {SNR}")
     
     return loo_single, loo_binary, comp_df
@@ -354,7 +353,7 @@ def plot_model_fits(t_binned, w_binned, sig_w_binned, idata_single, idata_binary
     ax = axes[0, 0]
     ax.errorbar(t_binned, w_binned, yerr=sig_w_binned, fmt='o', ms=3, c='k', alpha=0.7, label='Data')
     
-    as_pred_single = idata_single.posterior['mo3del_single'].values
+    as_pred_single = idata_single.posterior['model_single'].values
     q16, q50, q84 = np.percentile(as_pred_single, [16, 50, 84], axis=(0, 1))
     
     ax.plot(t_binned, q50, lw=2, color='blue', label='Single Star Model')
