@@ -103,7 +103,7 @@ def generate_corner_plot(idata, model='binary', fig=None, use_campbell=True, tru
                         labels=labels,
                         truth_color='red',
                         show_titles=True,
-                        plot_datapoints=False,
+                        plot_datapoints=True,
                         title_kwargs={"fontsize": 8}
                     )
         if fig is not None:
