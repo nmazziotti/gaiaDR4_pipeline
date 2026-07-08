@@ -97,7 +97,7 @@ def generate_corner_plot(idata, model='binary', fig=None, use_campbell=True, tru
                 
         elif model == 'single':
             plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax']
-            labels = [r"$\Delta\alpha$ [mas]", r"$\Delta\delta$ [mas]", r"$\mu_{\alpha}$ [mas/yr]", r"$\mu_{\delta}$ [mas/yr]", r"$\varpi$ [as]"]
+            labels = [r"$\Delta\alpha$ [mas]", r"$\Delta\delta$ [mas]", r"$\mu_{\alpha}$ [mas/yr]", r"$\mu_{\delta}$ [mas/yr]", r"$\varpi$ [mas]"]
 
         corner_kwargs = dict(
                         labels=labels,
