@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl 
 import matplotlib.gridspec as gridspec
 from matplotlib.backends.backend_pdf import PdfPages
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import corner
 
 from . import utils, mcmc
@@ -80,14 +81,14 @@ def generate_corner_plot(idata, model='binary', fig=None, use_campbell=True, tru
 
         if model == 'binary': 
             if use_campbell:
-                plot_list = ['delta_dec', 'delta_ra', 'pm_ra', 'pm_dec', 'parallax', 'p', 'ecc', 'phi', 'a0', 'Omega', 'omega',  'cosi', 'mp']
+                plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax', 'p', 'ecc', 'phi', 'a0', 'Omega', 'omega',  'cosi', 'mp']
                 labels = [
                             r"$\Delta\alpha$ [mas]", r"$\Delta\delta$ [mas]", r"$\mu_{\alpha}$ [mas/yr]", r"$\mu_{\delta}$ [mas/yr]",
                             r"$\varpi$ [mas]", r"${P}$ [days]", r"$e$", r"$\phi$", r"$a_0$ [mas]", 
                             r"$\Omega$", r"$\omega$", r"$\cos{i}$", r"$M_P$ [$M_J$]"
                         ]
             else:
-                plot_list = ['delta_dec', 'delta_ra', 'pm_ra', 'pm_dec', 'parallax', 'p', 'ecc', 'phi', 'A_in_mas', 'B_in_mas', 'F_in_mas', 'G_in_mas', 'mp']
+                plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax', 'p', 'ecc', 'phi', 'A_in_mas', 'B_in_mas', 'F_in_mas', 'G_in_mas', 'mp']
                 labels = [
                             r"$\Delta\alpha$ [mas]", r"$\Delta\delta$ [mas]", r"$\mu_{\alpha}$ [mas/yr]", r"$\mu_{\delta}$ [mas/yr]",
                             r"$\varpi$ [mas]", r"${P}$ [days]", r"$e$", r"$\phi$",
@@ -95,7 +96,7 @@ def generate_corner_plot(idata, model='binary', fig=None, use_campbell=True, tru
                         ]
                 
         elif model == 'single':
-            plot_list = ['delta_dec', 'delta_ra', 'pm_ra', 'pm_dec', 'parallax']
+            plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax']
             labels = [r"$\Delta\alpha$ [mas]", r"$\Delta\delta$ [mas]", r"$\mu_{\alpha}$ [mas/yr]", r"$\mu_{\delta}$ [mas/yr]", r"$\varpi$ [as]"]
 
         corner_kwargs = dict(
@@ -222,7 +223,7 @@ def get_position(t_binned, p, ecc, phi, A, B, F, G):
 
 def plot_posterior_orbits(enhanced_idata, t_binned, ax=None):
         if ax is None:
-            fig, ax = plt.subplots(figsize=(6,6), dpi=150)
+            fig, ax = plt.subplots(figsize=(6,6), dpi=600)
 
 
         p_posterior = enhanced_idata.posterior['p'].values.flatten()
@@ -261,27 +262,32 @@ def plot_posterior_orbits(enhanced_idata, t_binned, ax=None):
 
         ax.invert_xaxis()
         ax.set_aspect('equal')
+        ax.set_title("Posterior-Sampled Sky-Plane Orbit")
 
         # colorbar
         norm = plt.Normalize(vmin=t_binned.min(), vmax=t_binned.max())
         sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
         sm.set_array([])
-        cbar = ax.figure.colorbar(sm, ax=ax, fraction=0.046, pad=0.04)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.1)
+        cbar = ax.figure.colorbar(sm, cax=cax)
+        #, fraction=0.046, pad=0.04
         cbar.set_label('Time [BJD]')  # adjust units to whatever t_binned is in
 
 
 def summary_plot(cwd, sourceID, jobID, mstar, ra, dec, t_binned, w_binned, sig_w_binned):
     idata_single = utils.load_idata(cwd, sourceID, jobID, binary=False)
     idata_binary = utils.load_idata(cwd, sourceID, jobID)
+    sampling_runtime = idata_binary.sample_stats.sampling_time
     df_res = utils.load_comparison_res(cwd, sourceID, jobID)
-    df_timing = pd.read_csv(cwd / f'mcmc_files/{sourceID}/csv/timing_{jobID}.csv')
+    #df_timing = pd.read_csv(cwd / f'mcmc_files/{sourceID}/csv/timing_{jobID}.csv')
     SNR_detection, loo_binary, loo_single = utils.compute_loo_SNR(df_res)
 
     processed_idata = mcmc.process_idata(idata_binary, mstar)
 
     df = arviz_summary(processed_idata)
     #compute_SNR(df_res)
-    sampling_runtime = df_timing["Binary_Sampling"][0]
+    #sampling_runtime = df_timing["Binary_Sampling"][0]
 
     fig = plt.figure(figsize=(30, 22.5), dpi=150)
 

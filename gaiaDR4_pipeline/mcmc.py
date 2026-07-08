@@ -417,34 +417,35 @@ def run_pipeline(output_dir, jobID, sourceID, t_binned, w_binned, sig_w_binned, 
     end = datetime.now().strftime("%a %b %d %H:%M:%S %Y")
     print('Pipeline run complete.')
 
-def process_idata(idata_binary, mstar):
-    processed_idata = idata_binary.copy() 
-    avail_vars = [var for var in idata_binary.posterior.data_vars]
+def process_idata(idata, mstar, model='binary'):
+    processed_idata = idata.copy() 
+    avail_vars = [var for var in idata.posterior.data_vars]
 
     processed_idata.posterior["delta_ra"] = processed_idata.posterior["delta_ra"] * 1e3
     processed_idata.posterior["delta_dec"] = processed_idata.posterior["delta_dec"] * 1e3
     processed_idata.posterior["pm_ra"] = processed_idata.posterior["pm_ra"] * 1e3
     processed_idata.posterior["pm_dec"] = processed_idata.posterior["pm_dec"] * 1e3
 
-    if "mp" not in avail_vars:
-        a0_AU = processed_idata.posterior['a0'].values / processed_idata.posterior['parallax'].values
-        if 'log_a0' not in avail_vars:
-             processed_idata.posterior['log_a0'] = (("chain", "draw"), np.log(processed_idata.posterior['a0'].values))
-        mp = utils.solve_planet_mass(mstar, processed_idata.posterior['p'].values, a0_AU)
-        processed_idata.posterior['mp'] = (("chain", "draw"), mp * 1047.57)
-        processed_idata.posterior['log_mp'] = (("chain", "draw"), np.log(mp * 1047.57))
+    if model == 'binary':
+        if "mp" not in avail_vars:
+            a0_AU = processed_idata.posterior['a0'].values / processed_idata.posterior['parallax'].values
+            if 'log_a0' not in avail_vars:
+                processed_idata.posterior['log_a0'] = (("chain", "draw"), np.log(processed_idata.posterior['a0'].values))
+            mp = utils.solve_planet_mass(mstar, processed_idata.posterior['p'].values, a0_AU)
+            processed_idata.posterior['mp'] = (("chain", "draw"), mp * 1047.57)
+            processed_idata.posterior['log_mp'] = (("chain", "draw"), np.log(mp * 1047.57))
 
-        sma = (mstar + mp)**(1/3) * (processed_idata.posterior['p'].values/365.25)**(2/3)
-        processed_idata.posterior['sma'] = (("chain", "draw"), sma)
+            sma = (mstar + mp)**(1/3) * (processed_idata.posterior['p'].values/365.25)**(2/3)
+            processed_idata.posterior['sma'] = (("chain", "draw"), sma)
 
-    if "omega" not in avail_vars:
-        a0_mas, Omega, omega, incl = utils.thiele_innes_to_campbell(processed_idata.posterior["A_in_mas"].values, processed_idata.posterior["B_in_mas"].values, processed_idata.posterior["F_in_mas"].values, processed_idata.posterior["G_in_mas"].values) 
-        processed_idata.posterior["Omega"] = (("chain", "draw"), Omega)
-        processed_idata.posterior["omega"] = (("chain", "draw"), omega)
-        processed_idata.posterior["incl"] = (("chain", "draw"), incl)
-        processed_idata.posterior["cosi"] = (("chain", "draw"), np.cos(incl))
+        if "omega" not in avail_vars:
+            a0_mas, Omega, omega, incl = utils.thiele_innes_to_campbell(processed_idata.posterior["A_in_mas"].values, processed_idata.posterior["B_in_mas"].values, processed_idata.posterior["F_in_mas"].values, processed_idata.posterior["G_in_mas"].values) 
+            processed_idata.posterior["Omega"] = (("chain", "draw"), Omega)
+            processed_idata.posterior["omega"] = (("chain", "draw"), omega)
+            processed_idata.posterior["incl"] = (("chain", "draw"), incl)
+            processed_idata.posterior["cosi"] = (("chain", "draw"), np.cos(incl))
 
-    processed_idata.posterior["a0"] = processed_idata.posterior["a0"] * 1e3
+        processed_idata.posterior["a0"] = processed_idata.posterior["a0"] * 1e3
     processed_idata.posterior["parallax"] = processed_idata.posterior["parallax"] * 1e3
 
     return processed_idata
