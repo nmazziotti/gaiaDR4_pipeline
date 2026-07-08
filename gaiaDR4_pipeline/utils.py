@@ -4,8 +4,8 @@ import arviz as az
 import pandas as pd 
 from pathlib import Path
 from astropy.table import Table
-
-user_dir = Path('/work/hdd/bfoc/nm78/')
+import matplotlib.pyplot as plt
+import matplotlib as mpl 
 
 # Helper functions
 def solve_planet_mass(mstar, period, a0_AU):
@@ -136,29 +136,29 @@ def mod_angle(angle, range=[-np.pi,np.pi]):
          return angle % (2*np.pi) 
 
 # Loading files 
-def load_astrometry(sourceID, version='dr4'):
-    data_dir = user_dir / "gaiamock_data"
+def load_astrometry(cwd, sourceID, version='dr4'):
+    data_dir = cwd / "gaiamock_data"
     filename = f'EpochAstrometry-Gaia_{version.upper()}_{sourceID}.fits'
     t = Table.read(data_dir / filename)
     return t 
 
-def load_p0(parent_dir, sourceID):
-    p0 = np.loadtxt(parent_dir / f'grid_search_files/{sourceID}/grid_search_p0.txt')
+def load_p0(cwd, sourceID):
+    p0 = np.loadtxt(cwd / f'grid_search_files/{sourceID}/grid_search_p0.txt')
     return p0
 
-def load_grid_search_res(out_dir, sourceID):
-    data = np.load(user_dir / f'/{out_dir}/runs/{sourceID}/optimize/grid_search.npz')
+def load_grid_search_res(cwd, sourceID):
+    data = np.load(cwd / f'grid_search_files/{sourceID}/grid_search.npz')
     return data 
 
-def load_idata(out_dir, sourceID, jobID, binary=True):
+def load_idata(cwd, sourceID, jobID, binary=True):
     if binary:
-        idata = az.from_netcdf(user_dir / f'/{out_dir}/runs/{sourceID}/idata/binary_{jobID}.nc')
+        idata = az.from_netcdf(cwd / f'mcmc_files/{sourceID}/idata/binary_{jobID}.nc')
     else:
-        idata = az.from_netcdf(user_dir / f'/{out_dir}/runs/{sourceID}/idata/single_{jobID}.nc')
+        idata = az.from_netcdf(cwd / f'mcmc_files/{sourceID}/idata/single_{jobID}.nc')
     return idata
 
-def load_comparison_res(out_dir, sourceID, jobID):
-    df_res = pd.read_csv(user_dir / f'/{out_dir}/runs/{sourceID}/csv/model_comparison_results_{jobID}.csv')
+def load_comparison_res(cwd, sourceID, jobID):
+    df_res = pd.read_csv(cwd / f'mcmc_files/{sourceID}/csv/model_comparison_results_{jobID}.csv')
     return df_res 
 
 def compute_loo_SNR(df_res):
@@ -169,9 +169,11 @@ def compute_loo_SNR(df_res):
         binary_index = 1
         single_index = 0
     
-    SNR = (df_res['elpd_loo'][binary_index] - df_res['elpd_loo'][single_index]) / np.sqrt(df_res['dse'][0]**2 + df_res['dse'][1]**2)
+    loo_binary = df_res['elpd_loo'][binary_index]
+    loo_single = df_res['elpd_loo'][single_index]
+    SNR = (loo_binary - loo_single) / np.sqrt(df_res['dse'].iloc[0]**2 + df_res['dse'].iloc[1]**2)
     SNR = float(SNR)
-    return SNR 
+    return SNR, loo_binary, loo_single
 
 # Optimization functions  
 def generate_metadata(ra_off, dec_off, pmra, pmdec, plx, mstar, **kwargs):
@@ -282,8 +284,8 @@ def initvals_for_model(model, metadata):
                 initvals[name] = metadata[name]
     return initvals
 
-def convert_p0_to_metadata(out_dir, sourceID, mstar):
-    p0 = load_p0(out_dir, sourceID)
+def convert_p0_to_metadata(cwd, sourceID, mstar):
+    p0 = load_p0(cwd, sourceID)
     log_p, ecc, phi, ra_off, pmra, dec_off, pmdec, plx, B, G, A, F = p0
     a0, Omega, omega, incl = thiele_innes_to_campbell(A, B, F, G)
     period = np.exp(log_p)
@@ -294,11 +296,54 @@ def convert_p0_to_metadata(out_dir, sourceID, mstar):
     )
     return metadata 
 
-def generate_initvals_from_p0(single_model, binary_model, sourceID, out_dir, mstar):
-    metadata =  convert_p0_to_metadata(out_dir, sourceID, mstar)
+def generate_initvals_from_p0(single_model, binary_model, sourceID, cwd, mstar):
+    metadata =  convert_p0_to_metadata(cwd, sourceID, mstar)
     
     single_initvals = initvals_for_model(single_model, metadata)
     binary_initvals = initvals_for_model(binary_model, metadata)
 
     return single_initvals, binary_initvals
 
+
+def extract_ra_dec(source_id, df):
+    mask = df['source_id'] == source_id
+    ra, dec = df[["ra0", "dec0"]][mask].values[0,:]
+    return ra, dec
+
+def extract_time_series(source_id, df, verbose=False):
+    mask = df['source_id'] == source_id
+
+    def bin(column):
+        col = np.stack(df.loc[mask][column].values) 
+        #mean = col.mean(axis=1) 
+        mean = np.ma.median(col, axis=1)  
+        #return mean.data
+        return mean.filled(np.nan)
+
+    t_binned = bin('obs_time_tcb')
+    psi_binned = np.deg2rad(bin('scan_pos_angle'))
+    w_binned = bin('centroid_pos_al') * 1e-3
+    sig_w_binned = bin('centroid_pos_error_al') * 1e-3
+    pf_binned = df.loc[mask]['parallax_factor_al'].values
+
+    idx = np.argsort(t_binned)        # ascending
+    t_binned = t_binned[idx]
+    psi_binned = psi_binned[idx]
+    w_binned = w_binned[idx]
+    sig_w_binned = sig_w_binned[idx]
+    pf_binned = pf_binned[idx]
+    
+
+    is_nan = np.isnan(w_binned)
+    if verbose:
+        print(f"NOTE: {np.sum(is_nan)/len(is_nan)*100:.2f}% of data points are NaN")
+    t_binned = t_binned[~is_nan]
+    psi_binned = psi_binned[~is_nan]
+    w_binned = w_binned[~is_nan]
+    sig_w_binned = sig_w_binned[~is_nan]
+    pf_binned = pf_binned[~is_nan]
+
+    tref = 2457936.875
+    t_binned = t_binned / 1e9 / 86400 + 2455197.5 - tref
+
+    return t_binned, psi_binned, w_binned, sig_w_binned, pf_binned
