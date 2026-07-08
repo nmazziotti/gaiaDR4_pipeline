@@ -18,7 +18,6 @@ if __name__ == "__main__":
 
     jobID = args.jobID
     arrayID = args.arrayID
-    version='dr4'
 
     cwd = Path(os.getcwd()) / "dr4_prerelease"
     table = Table.read(cwd / "GAIA_DR4_PRERELEASE_EPOCH_ASTROMETRY_RAW.xml", format="votable")
