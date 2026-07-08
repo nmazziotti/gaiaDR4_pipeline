@@ -1,5 +1,6 @@
 _pycache__
 *.pyc
 .ipynb_checkpoints
+*.egg-info/
 /examples/dr4_prerelease/mcmc_files/
 /examples/dr4_prerelease/grid_search_files/
