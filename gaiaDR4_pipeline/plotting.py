@@ -272,7 +272,7 @@ def plot_posterior_orbits(enhanced_idata, t_binned, ax=None):
         cax = divider.append_axes("right", size="5%", pad=0.1)
         cbar = ax.figure.colorbar(sm, cax=cax)
         #, fraction=0.046, pad=0.04
-        cbar.set_label('Time [BJD]')  # adjust units to whatever t_binned is in
+        cbar.set_label('Time [BJD]') 
 
 
 def summary_plot(cwd, sourceID, jobID, mstar, ra, dec, t_binned, w_binned, sig_w_binned):
@@ -368,25 +368,24 @@ def summary_plot(cwd, sourceID, jobID, mstar, ra, dec, t_binned, w_binned, sig_w
     table.auto_set_font_size(False)
     table.set_fontsize(20)
 
-    # Get the K x K axes grid that corner.py created inside the subfigure
+
     n_axes = len(subfig_corner.axes)
     ndim = int(np.sqrt(n_axes))
-    corner_axes = np.array(subfig_corner.axes).reshape(ndim, ndim)  # ndim = number of corner params
+    corner_axes = np.array(subfig_corner.axes).reshape(ndim, ndim)
 
-    # Pick the block of hidden upper-triangle axes you want to reclaim,
-    # e.g. rows 0:5, cols 6:ndim (adjust to match how big a panel you want)
+
     r0, r1 = 0, 4
     c0, c1 = 7, ndim - 1
 
-    # Grab the gridspec from any one of those axes before removing them
+
     gs_inner = corner_axes[r0, c0].get_subplotspec().get_gridspec()
 
-    # Remove the individual hidden axes in that block
+
     for i in range(r0, r1):
         for j in range(c0, c1):
             corner_axes[i, j].remove()
 
-    # Add one new axis spanning that block
+
     ax_extra = subfig_corner.add_subplot(gs_inner[r0:r1, c0:c1])
     plot_grid_search_chi2(cwd, sourceID, ax=ax_extra)
 
