@@ -1,7 +1,8 @@
 pyproject.toml
 gaiaDR4_pipeline/__init__.py
-gaiaDR4_pipeline/core.py
-gaiaDR4_pipeline/modeling.py
+gaiaDR4_pipeline/grid.py
+gaiaDR4_pipeline/mcmc.py
+gaiaDR4_pipeline/plotting.py
 gaiaDR4_pipeline/utils.py
 gaiaDR4_pipeline.egg-info/PKG-INFO
 gaiaDR4_pipeline.egg-info/SOURCES.txt

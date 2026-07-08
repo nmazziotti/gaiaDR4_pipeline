@@ -191,6 +191,7 @@ def plot_model_fits(t_binned, w_binned, sig_w_binned, idata_single, idata_binary
     #plt.tight_layout()
     if save_fn is not None:
         plt.savefig(save_fn, dpi=300, bbox_inches='tight')
+        plt.close()
 
 def kepler(M, ecc, tol=1e-10, max_iter=100):
     E = M.copy()

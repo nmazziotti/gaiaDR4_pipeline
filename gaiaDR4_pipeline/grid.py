@@ -172,17 +172,16 @@ def compute_marginal_weights(samples, chi2_samples, weights):
 
     return unique_vals, marginal_weights/ np.sum(marginal_weights), min_chi2
 
-def run_grid_search_torch(cwd, source_id, t_ast_yr_raw, psi_raw, plx_factor_raw, ast_obs_raw, ast_err_raw, device="cuda", **kwargs):
-    # 1. Verify CUDA is active
-
+def run_grid_search(cwd, source_id, t_binned, psi_binned, pf_binned, w_binned, sig_w_binned, device="cuda", **kwargs):
+    # 1. Verify CUDA 
     # 4. Use torch.from_numpy to automatically and safely fix the byte-order 
     # during the transfer directly onto the GPU
     dtype = torch.float64
-    t_ast_yr   = torch.from_numpy(t_ast_yr_raw).to(device=device, dtype=dtype)
-    psi        = torch.from_numpy(psi_raw).to(device=device, dtype=dtype)
-    plx_factor = torch.from_numpy(plx_factor_raw).to(device=device, dtype=dtype)
-    ast_obs    = torch.from_numpy(ast_obs_raw).to(device=device, dtype=dtype)
-    ast_err    = torch.from_numpy(ast_err_raw).to(device=device, dtype=dtype)
+    t_ast_yr   = torch.from_numpy(t_binned/365.25).to(device=device, dtype=dtype)
+    psi        = torch.from_numpy(psi_binned).to(device=device, dtype=dtype)
+    plx_factor = torch.from_numpy(pf_binned).to(device=device, dtype=dtype)
+    ast_obs    = torch.from_numpy(w_binned * 1e3).to(device=device, dtype=dtype) # mas
+    ast_err    = torch.from_numpy(sig_w_binned * 1e3).to(device=device, dtype=dtype) # mas
     # =========================================================================
 
     # print("Start execution on GPU...")

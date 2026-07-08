@@ -9,6 +9,7 @@ import pytensor.tensor as pt
 import time 
 from datetime import datetime
 import pandas as pd 
+from pathlib import Path
 
 from pymc.progress_bar import ProgressBarManager
 import pymc.sampling.parallel as ps
@@ -166,7 +167,7 @@ def xo_unit_disk(name_x, name_y, **kwargs):
 def build_planet_star_model_campbell_TI(t_binned, w_binned, sig_w_binned, pf_binned, psi_binned, add_jitter=False, init_vals=None, angles='uniform', unit_disk=False):
     """Build the planet-star astrometric model"""
 
-    print("Building planet-star model with combination of Campbell and Thiele-Innes elements...")
+    print("Building planet-star model...")
 
     binary_model = single_star_base(t_binned, w_binned, sig_w_binned, pf_binned, psi_binned, add_jitter=add_jitter)
     
@@ -356,8 +357,8 @@ def run_pipeline(output_dir, jobID, sourceID, t_binned, w_binned, sig_w_binned, 
     start_pipeline = time.time()
 
     save_dir = output_dir / f"mcmc_files/{sourceID}" 
-    # for d in ['idata', 'csv', 'plots', 'out']:
-    #     Path(save_dir / d).mkdir(parents=True, exist_ok=True)
+    for d in ['idata', 'csv', 'plots', 'out']:
+        Path(save_dir / d).mkdir(parents=True, exist_ok=True)
   
     #Path(output_dir / f"timestamps/{jobID}").mkdir(parents=True, exist_ok=True)
     
@@ -374,11 +375,9 @@ def run_pipeline(output_dir, jobID, sourceID, t_binned, w_binned, sig_w_binned, 
     start_map = time.time()
 
     single_initvals, binary_initvals = utils.generate_initvals_from_p0(single_model, binary_model, sourceID, output_dir, mstar)
-    print(binary_initvals)
     # single_initvals, binary_initvals, metadata = generate_initvals_from_grid_search(single_model, binary_model, t_ast_yr, psi, plx_factor, ast_obs, ast_err, t.meta['MSTAR'], cores=4)
     # generate_initvals(single_model, binary_model, t_ast_yr, psi, plx_factor, ast_obs, ast_err, mstar, c_funcs)
     map_time = time.time() - start_map
-    print(f"MAP optimization took: {map_time:.2f} seconds")
 
 
     # Fit models and get inference data
@@ -408,8 +407,8 @@ def run_pipeline(output_dir, jobID, sourceID, t_binned, w_binned, sig_w_binned, 
     pipeline_time = time.time() - start_pipeline
     print(f"Pipeline runtime: {pipeline_time/60:.2f} minutes")
 
-    print(f"Sampling time: {idata_binary.sample_stats.sampling_time:.2f} seconds")
-    print(f"Total fitting time for binary model: {(idata_binary.sample_stats.sampling_time + map_time)/60:.2f} minutes")
+    print(f"Binary model sampling time: {idata_binary.sample_stats.sampling_time:.2f} seconds")
+    #print(f"Total fitting time for binary model: {(idata_binary.sample_stats.sampling_time + map_time)/60:.2f} minutes")
 
     timing_dict = {'Binary_Optimization': map_time, 'Single_Sampling': idata_single.sample_stats.sampling_time, 'Binary_Sampling': idata_binary.sample_stats.sampling_time, 'Total_Runtime': pipeline_time}
     timing_df = pd.DataFrame(timing_dict, index=[0])
