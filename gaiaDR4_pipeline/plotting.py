@@ -13,7 +13,7 @@ import corner
 
 from . import utils, mcmc
 
-def plot_grid_search_chi2(cwd, sourceID, ax=None):
+def plot_grid_search_chi2(cwd, sourceID, ax=None, dpi=150):
     res = utils.load_grid_search_res(cwd, sourceID)
     chi2min_logP = res["log_P"][np.argmin(res["min_chi2"])]
 
@@ -76,35 +76,49 @@ def arviz_summary(enhanced_idata):
                 df[column] = df[column].round(2) 
         return df
 
-def generate_corner_plot(idata, model='binary', fig=None, use_campbell=True, true_vals=None, initvals=None):
+def generate_corner_plot(idata, model='binary', plot_list=None, fig=None, use_campbell=True, true_vals=None, initvals=None, dpi=600):
         posterior = idata.posterior 
 
-        if model == 'binary': 
-            if use_campbell:
-                plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax', 'p', 'ecc', 'phi', 'a0', 'Omega', 'omega',  'cosi', 'mp']
-                labels = [
-                            r"$\Delta\alpha$ [mas]", r"$\Delta\delta$ [mas]", r"$\mu_{\alpha}$ [mas/yr]", r"$\mu_{\delta}$ [mas/yr]",
-                            r"$\varpi$ [mas]", r"${P}$ [days]", r"$e$", r"$\phi$", r"$a_0$ [mas]", 
-                            r"$\Omega$", r"$\omega$", r"$\cos{i}$", r"$M_P$ [$M_J$]"
-                        ]
-            else:
-                plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax', 'p', 'ecc', 'phi', 'A_in_mas', 'B_in_mas', 'F_in_mas', 'G_in_mas', 'mp']
-                labels = [
-                            r"$\Delta\alpha$ [mas]", r"$\Delta\delta$ [mas]", r"$\mu_{\alpha}$ [mas/yr]", r"$\mu_{\delta}$ [mas/yr]",
-                            r"$\varpi$ [mas]", r"${P}$ [days]", r"$e$", r"$\phi$",
-                            r"A [mas]", r"B [mas]", r"F [mas]", r"G [mas]", r"$M_P$ [$M_J$]"
-                        ]
-                
-        elif model == 'single':
-            plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax']
-            labels = [r"$\Delta\alpha$ [mas]", r"$\Delta\delta$ [mas]", r"$\mu_{\alpha}$ [mas/yr]", r"$\mu_{\delta}$ [mas/yr]", r"$\varpi$ [mas]"]
+        latex_labels = {
+            'delta_ra':  r"$\Delta\alpha$ [mas]",
+            'delta_dec':  r"$\Delta\delta$ [mas]",
+            'pm_ra': r"$\mu_{\alpha}$ [mas/yr]",
+            'pm_dec': r"$\mu_{\delta}$ [mas/yr]",
+            'parallax':  r"$\varpi$ [mas]",
+            'log_parallax': r"$\log{\varpi}$ [mas]",
+            'p': r"${P}$ [days]",
+            'log_p':  r"$\log{P}$ [days]",
+            'ecc': r"$e$",
+            'phi': r"$\phi$",
+            'a0': r"$a_0$ [mas]",
+            'log_a0': r"$\log{a_0}$ [mas]",
+            'Omega': r"$\Omega$",
+            'omega': r"$\omega$",
+            'cosi': r"$\cos{i}$",
+            'mp': r"$M_P$ [$M_J$]",
+            'A_in_mas': r"A [mas]",
+            'B_in_mas':  r"B [mas]",
+            'F_in_mas': r"F [mas]",
+            'G_in_mas': r"G [mas]"
+        }
+
+        if plot_list is None:
+            if model == 'binary': 
+                if use_campbell:
+                    plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax', 'p', 'ecc', 'phi', 'a0', 'Omega', 'omega',  'cosi', 'mp']
+                else:
+                    plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax', 'p', 'ecc', 'phi', 'A_in_mas', 'B_in_mas', 'F_in_mas', 'G_in_mas', 'mp']
+            elif model == 'single':
+                plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax']
+
+        labels = [latex_labels[param_name] for param_name in plot_list]
 
         corner_kwargs = dict(
                         labels=labels,
                         truth_color='red',
                         show_titles=True,
                         plot_datapoints=True,
-                        title_kwargs={"fontsize": 8}
+                        title_kwargs={"fontsize": 10}
                     )
         if fig is not None:
             corner_kwargs['fig'] = fig
@@ -129,13 +143,15 @@ def generate_corner_plot(idata, model='binary', fig=None, use_campbell=True, tru
             axes = np.array(corner_fig.axes).reshape(len(plot_list), len(plot_list))
             for i, val in enumerate(initval_list):
                 if val is not None:
-                    axes[i, i].axvline(val, color='k', lw=1.5, linestyle=':')            
+                    axes[i, i].axvline(val, color='k', lw=1.5, linestyle=':')   
+
+        corner_fig.set_dpi(dpi)         
         return corner_fig
 
-def plot_model_fits(t_binned, w_binned, sig_w_binned, idata_single, idata_binary, save_fn=None, axes=None):
+def plot_model_fits(t_binned, w_binned, sig_w_binned, idata_single, idata_binary, save_fn=None, axes=None, dpi=150):
     """Plot model fits and residuals"""
     if axes is None:
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+        fig, axes = plt.subplots(2, 2, figsize=(15, 10), dpi=dpi)
     
     # Single star model
     ax = axes[0, 0]
@@ -221,9 +237,9 @@ def get_position(t_binned, p, ecc, phi, A, B, F, G):
     b_dec = B*X + G*Y
     return b_ra, b_dec
 
-def plot_posterior_orbits(enhanced_idata, t_binned, ax=None):
+def plot_posterior_orbits(enhanced_idata, t_binned, ax=None, dpi=600, plot_transits=True):
         if ax is None:
-            fig, ax = plt.subplots(figsize=(6,6), dpi=600)
+            fig, ax = plt.subplots(figsize=(6,6), dpi=dpi)
 
 
         p_posterior = enhanced_idata.posterior['p'].values.flatten()
@@ -254,28 +270,30 @@ def plot_posterior_orbits(enhanced_idata, t_binned, ax=None):
             b_ra_data, b_dec_data = get_position(t_binned, p, ecc, phi, A, B, F, G)
 
             ax.plot(b_ra, b_dec, lw=0.5, color='tab:blue', alpha=0.3, zorder=1)
-            ax.scatter(b_ra_data, b_dec_data, lw=0.5, alpha=0.3, s=2, zorder=10, c=colors)
+            if plot_transits:
+                ax.scatter(b_ra_data, b_dec_data, lw=0.5, alpha=0.3, s=2, zorder=10, c=colors)
 
         ax.plot(0, 0, marker='x', c='k')
         ax.set_xlabel(r'$\Delta\alpha\cos\delta$ [mas]')
         ax.set_ylabel(r'$\Delta\delta$ [mas]')
 
-        ax.invert_xaxis()
+        #ax.invert_xaxis()
         ax.set_aspect('equal')
         ax.set_title("Posterior-Sampled Sky-Plane Orbit")
 
-        # colorbar
-        norm = plt.Normalize(vmin=t_binned.min(), vmax=t_binned.max())
-        sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
-        sm.set_array([])
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.1)
-        cbar = ax.figure.colorbar(sm, cax=cax)
-        #, fraction=0.046, pad=0.04
-        cbar.set_label('Time [BJD]') 
+        if plot_transits:
+            # colorbar
+            norm = plt.Normalize(vmin=t_binned.min(), vmax=t_binned.max())
+            sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
+            sm.set_array([])
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes("right", size="5%", pad=0.1)
+            cbar = ax.figure.colorbar(sm, cax=cax)
+            #, fraction=0.046, pad=0.04
+            cbar.set_label('Time [BJD]') 
 
 
-def summary_plot(cwd, sourceID, jobID, mstar, ra, dec, t_binned, w_binned, sig_w_binned):
+def summary_plot(cwd, sourceID, jobID, mstar, ra, dec, t_binned, w_binned, sig_w_binned, dpi=150):
     idata_single = utils.load_idata(cwd, sourceID, jobID, binary=False)
     idata_binary = utils.load_idata(cwd, sourceID, jobID)
     sampling_runtime = idata_binary.sample_stats.sampling_time
@@ -289,7 +307,7 @@ def summary_plot(cwd, sourceID, jobID, mstar, ra, dec, t_binned, w_binned, sig_w
     #compute_SNR(df_res)
     #sampling_runtime = df_timing["Binary_Sampling"][0]
 
-    fig = plt.figure(figsize=(30, 22.5), dpi=150)
+    fig = plt.figure(figsize=(30, 22.5), dpi=dpi)
 
     # Outer grid: 2 rows, 2 columns
     gs_outer = gridspec.GridSpec(2, 2, figure=fig, width_ratios=[1.5, 1],
@@ -314,7 +332,7 @@ def summary_plot(cwd, sourceID, jobID, mstar, ra, dec, t_binned, w_binned, sig_w
 
     subfig_corner = fig.add_subfigure(gs_outer[1, 0])
     initvals = utils.convert_p0_to_metadata(cwd, sourceID, mstar)
-    corner_fig = generate_corner_plot(processed_idata, initvals=initvals, use_campbell=True, fig=subfig_corner);
+    corner_fig = generate_corner_plot(processed_idata, initvals=initvals, use_campbell=True, fig=subfig_corner, dpi=dpi);
     #plot_corner(enhanced_idata, sourceID, fig=subfig_corner, initvals=initvals)
 
     for ax in subfig_corner.get_axes():
@@ -338,10 +356,10 @@ def summary_plot(cwd, sourceID, jobID, mstar, ra, dec, t_binned, w_binned, sig_w
     ax11 = fig.add_subplot(gs[1, 1], sharex=ax01)
     
     axes = np.array([[ax00, ax01], [ax10, ax11]])
-    plot_model_fits(t_binned, w_binned, sig_w_binned, idata_single, idata_binary, save_fn=None, axes=axes)
+    plot_model_fits(t_binned, w_binned, sig_w_binned, idata_single, idata_binary, save_fn=None, axes=axes, dpi=dpi)
 
     ax_orbit = fig.add_subplot(gs_right[1])
-    plot_posterior_orbits(processed_idata, t_binned, ax=ax_orbit)
+    plot_posterior_orbits(processed_idata, t_binned, ax=ax_orbit, dpi=dpi, plot_transits=False)
 
     fig.text(0.83, 0.97, f"SRCID: {sourceID}",
             ha="center", va="top",

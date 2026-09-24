@@ -260,7 +260,7 @@ def initvals_for_model(model, metadata):
         name = var.name
         dist = type(var.owner.op).__name__  # "Uniform"
 
-        if name != 'logl':
+        if name != 'logl' and name != 'log_sigma' and name != 'log_sigma_interval__' and name != 'jitter':
             if 'Uniform' in dist:
                 lower = var.owner.inputs[2].eval()
                 upper = var.owner.inputs[3].eval()
@@ -302,7 +302,7 @@ def generate_initvals_from_p0(single_model, binary_model, sourceID, cwd, mstar):
     single_initvals = initvals_for_model(single_model, metadata)
     binary_initvals = initvals_for_model(binary_model, metadata)
 
-    return single_initvals, binary_initvals
+    return single_initvals, binary_initvals, metadata
 
 
 def extract_ra_dec(source_id, df):

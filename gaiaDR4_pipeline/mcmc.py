@@ -113,7 +113,9 @@ def single_star_base(t_binned, w_binned, sig_w_binned, pf_binned, psi_binned, ad
         
         if add_jitter:
             # Astrometric jitter
-            log_sigma = pm.Uniform('log_sigma', lower=np.log(1e-6), upper=np.log(1e-3))
+            #log_sigma = pm.Uniform('log_sigma', lower=np.log(1e-9), upper=np.log(100)) # as
+            #log_sigma = pm.Normal('log_sigma', mu=np.log(1e-3), sigma=10.) # as/yr
+            jitter = pm.HalfNormal('jitter', sigma=np.median(sig_w_binned))
 
         # Model prediction
         def single_star_as(t, delta_ra, delta_dec, pm_ra, pm_dec, parallax, pf, psi):
@@ -136,8 +138,12 @@ def build_single_star_model(t_binned, w_binned, sig_w_binned, pf_binned, psi_bin
         
         # Likelihood
         if add_jitter:
-            log_sigma = single_model['log_sigma']
-            total_sigma = pt.sqrt(sig_w_binned**2 + pt.exp(log_sigma)**2)
+            try:
+                log_sigma = single_model['log_sigma']
+                total_sigma = pt.sqrt(sig_w_binned**2 + (pt.exp(log_sigma))**2)
+            except KeyError:
+                jitter = single_model['jitter']
+                total_sigma = pt.sqrt(sig_w_binned**2 + jitter**2)
         else:
             total_sigma = sig_w_binned
         logl = pm.Normal('logl', mu=model_single, sigma=total_sigma, observed=w_binned)
@@ -218,7 +224,6 @@ def build_planet_star_model_campbell_TI(t_binned, w_binned, sig_w_binned, pf_bin
         # Inclination
         cosi = pm.Uniform('cosi', lower=-1., upper=1.)
         incl = pm.Deterministic("incl", pt.arccos(cosi)) # radians
-    
 
         # Compute a0 
         # Grav = 2.95912208286e-4 # AU^3 Msun^-1 days^-2 
@@ -257,6 +262,113 @@ def build_planet_star_model_campbell_TI(t_binned, w_binned, sig_w_binned, pf_bin
         def binary_as(t, psi, p, ecc, phi, A, B, F, G):
             b_ra, b_dec = get_position(t, p, ecc, phi, A, B, F, G)
             
+            # binary_ra = pm.Deterministic('binary_ra', b_ra)
+            # binary_dec = pm.Deterministic('binary_dec', b_dec)
+
+            return b_ra*pt.cos(psi) + b_dec*pt.sin(psi)
+
+        model_binary =  pm.Deterministic('model_binary', binary_as(t_binned, psi_binned, p, ecc, phi, A, B, F, G))
+        
+        model_single = binary_model['model_single']
+
+        # Optionally add jitter 
+        if add_jitter:
+            try:
+                log_sigma = binary_model['log_sigma']
+                total_sigma = pt.sqrt(sig_w_binned**2 + (pt.exp(log_sigma))**2)
+            except KeyError:
+                jitter = binary_model['jitter']
+                total_sigma = pt.sqrt(sig_w_binned**2 + jitter**2)
+        else:
+            total_sigma = sig_w_binned
+
+        # Likelihoods
+        logl = pm.Normal('logl', mu=model_single + model_binary, sigma=total_sigma, observed=w_binned)
+
+
+        if angles == 'pmx.angle':
+            # Pointwise log likelihood 
+            logl_pointwise = pm.Deterministic(
+                'logl_pointwise',
+                -0.5 * pt.log(2 * np.pi * total_sigma**2) - 
+                0.5 * ((w_binned - (model_single + model_binary)) / total_sigma)**2
+            )
+        
+        # For plotting orbit 
+        # t_max_plot = pm.Deterministic('t_max_plot', 1.1 * p)
+        # t_plot = pt.linspace(0, t_max_plot, 1000)
+        # b_ra, b_dec = get_position(t_plot, p, ecc, phi, A, B, F, G)
+        # ra_plot = pm.Deterministic('ra_plot', b_ra)
+        # dec_plot = pm.Deterministic('dec_plot', b_dec)
+
+    return binary_model
+
+def build_planet_star_model_TI(t_binned, w_binned, sig_w_binned, pf_binned, psi_binned, add_jitter=False, angles='uniform',):
+    """Build the planet-star astrometric model"""
+
+    print("Building planet-star model with Thiele-Innes elements...")
+    binary_model = single_star_base(t_binned, w_binned, sig_w_binned, pf_binned, psi_binned, add_jitter=add_jitter)
+    
+    with binary_model:
+        binary_model.model_name = 'TI'
+
+        # Thiele-Innes elements 
+        R = 1000.0
+        A_in_mas = pm.Uniform('A_in_mas', lower=-R, upper=R)
+        B_in_mas = pm.Uniform('B_in_mas', lower=-R, upper=R)
+        F_in_mas = pm.Uniform('F_in_mas', lower=-R, upper=R)
+        G_in_mas = pm.Uniform('G_in_mas', lower=-R, upper=R)
+
+        A = A_in_mas * 1e-3
+        B = B_in_mas * 1e-3
+        F = F_in_mas * 1e-3
+        G = G_in_mas * 1e-3
+
+        S = A**2 + B**2 + F**2 + G**2
+        D = A*G - B*F
+        det_J = pt.sqrt((S + pt.sqrt(S**2 - 4*D**2))/2) * pt.sqrt(S**2 - 4*D**2)
+        pm.Potential("jacobian", -pt.log(det_J))
+        log_detJ = pm.Deterministic("log_detJ", -pt.log(det_J))
+
+        u = (A**2 + B**2 + F**2 + G**2) / 2.0
+        v = A * G - B * F
+        sqrt_u2_minus_v2 = pt.sqrt((u + v) * (u - v))
+        a0 = pm.Deterministic("a0", pt.sqrt(u + sqrt_u2_minus_v2)) # as
+
+        # Binary orbital parameters
+        log_p = pm.Uniform('log_p', lower=np.log(1), upper=np.log(1e5))
+        p = pm.Deterministic('p', pt.exp(log_p))
+        
+        # Eccentricity 
+        ecc = pm.Uniform("ecc", lower=0.0, upper=1.0)
+        if angles == 'uniform':
+            phi = pm.Uniform("phi", lower=-pt.pi, upper=pt.pi)
+        elif angles == 'VonMises':
+            kappa = 1e-6
+            phi = pm.VonMises("phi",  mu=0.0, kappa=kappa)
+        elif angles == 'pmx.angle':
+            phi = pmx.angle("phi") # phase at t=0
+
+        def get_position(t, p, ecc, phi, A, B, F, G):
+            n = 2*pt.pi / p  # mean motion
+            M = n * t - phi # mean anomaly
+
+            # Solve Kepler's equation for true anomaly f
+            f = xo.orbits.keplerian.get_true_anomaly(M, ecc + pt.zeros_like(M))
+            r = (1 - ecc**2) / (1 + ecc * pt.cos(f))
+
+            # # Compute projected positions using Thiele-Innes
+            X = r * pt.cos(f)
+            Y = r * pt.sin(f)
+
+            b_ra = A*X + F*Y
+            b_dec = B*X + G*Y
+
+            return b_ra, b_dec 
+        
+        def binary_as(t, psi, p, ecc, phi, A, B, F, G):
+            b_ra, b_dec = get_position(t, p, ecc, phi, A, B, F, G)
+            
             binary_ra = pm.Deterministic('binary_ra', b_ra)
             binary_dec = pm.Deterministic('binary_dec', b_dec)
 
@@ -272,20 +384,19 @@ def build_planet_star_model_campbell_TI(t_binned, w_binned, sig_w_binned, pf_bin
             total_sigma = pt.sqrt(sig_w_binned**2 + pt.exp(log_sigma)**2)
         else:
             total_sigma = sig_w_binned
-        
-        # Likelihoods
+
+        # Likelihood
         logl = pm.Normal('logl', mu=model_single + model_binary, sigma=total_sigma, observed=w_binned)
 
-
+        # Pointwise log likelihood 
         if angles == 'pmx.angle':
-            # Pointwise log likelihood 
             logl_pointwise = pm.Deterministic(
                 'logl_pointwise',
                 -0.5 * pt.log(2 * np.pi * total_sigma**2) - 
                 0.5 * ((w_binned - (model_single + model_binary)) / total_sigma)**2
             )
         
-        # For plotting orbit 
+        # For plotting orbit
         t_max_plot = pm.Deterministic('t_max_plot', 1.1 * p)
         t_plot = pt.linspace(0, t_max_plot, 1000)
         b_ra, b_dec = get_position(t_plot, p, ecc, phi, A, B, F, G)
@@ -324,8 +435,8 @@ def compare_models_loo(idata_single, idata_binary):
     print(comp_df)
         
     # Compute LOO for both models
-    loo_single = az.loo(idata_single)
-    loo_binary = az.loo(idata_binary)
+    loo_single = az.loo(idata_single, pointwise=True)
+    loo_binary = az.loo(idata_binary, pointwise=True)
     
     # Direct comparison
     print("\n" + "-"*60)
@@ -370,11 +481,11 @@ def run_pipeline(output_dir, jobID, sourceID, t_binned, w_binned, sig_w_binned, 
 
     # Build models
     single_model = build_single_star_model(t_binned, w_binned, sig_w_binned, pf_binned, psi_binned)
-    binary_model = build_planet_star_model_campbell_TI(t_binned, w_binned, sig_w_binned, pf_binned, psi_binned, angles='uniform', unit_disk=False)
+    binary_model = build_planet_star_model_campbell_TI(t_binned, w_binned, sig_w_binned, pf_binned, psi_binned)
 
     start_map = time.time()
 
-    single_initvals, binary_initvals = utils.generate_initvals_from_p0(single_model, binary_model, sourceID, output_dir, mstar)
+    single_initvals, binary_initvals, metadata = utils.generate_initvals_from_p0(single_model, binary_model, sourceID, output_dir, mstar)
     # single_initvals, binary_initvals, metadata = generate_initvals_from_grid_search(single_model, binary_model, t_ast_yr, psi, plx_factor, ast_obs, ast_err, t.meta['MSTAR'], cores=4)
     # generate_initvals(single_model, binary_model, t_ast_yr, psi, plx_factor, ast_obs, ast_err, mstar, c_funcs)
     map_time = time.time() - start_map
