@@ -210,6 +210,8 @@ def generate_metadata(ra_off, dec_off, pmra, pmdec, plx, mstar, **kwargs):
             k = 0.01
 
         __k_unit_disk = k / np.sqrt(1 - h**2)
+
+        log_f = np.log(mp / (mp+mstar)**(2/3))
     
         metadata = {
             'delta_ra': np.array(ra_off * 1e-3), # as
@@ -238,7 +240,10 @@ def generate_metadata(ra_off, dec_off, pmra, pmdec, plx, mstar, **kwargs):
             'F_in_mas': np.array(F),
             'G_in_mas': np.array(G),
             'a0': np.array(a0 * 1e-3), # as
+            'a0_AU': np.array(a0 / plx), # AU
             'log_a0': np.array(np.log(a0 * 1e-3)), # as
+            'log_a0_AU': np.array(np.log(a0 / plx)), # AU
+            'log_f': np.array(log_f)
             }
     else:
         metadata = {

@@ -36,6 +36,8 @@ def plot_grid_search_chi2(cwd, sourceID, ax=None, dpi=150):
     top_ax.set_xticks(bottom_ticks)  # same positions as bottom axis
     top_ax.set_xticklabels([f'{np.exp(t):.0f}' for t in bottom_ticks])
 
+    return ax.figure
+
 
 def arviz_summary(enhanced_idata):
         # --- Add a table (top half) ---
@@ -76,31 +78,45 @@ def arviz_summary(enhanced_idata):
                 df[column] = df[column].round(2) 
         return df
 
-def generate_corner_plot(idata, model='binary', plot_list=None, fig=None, use_campbell=True, true_vals=None, initvals=None, dpi=600):
-        posterior = idata.posterior 
+def get_latex_label(param_name, extra_labels=None):
+    latex_labels = {
+                'delta_ra':  r"$\Delta\alpha$ [mas]",
+                'delta_dec':  r"$\Delta\delta$ [mas]",
+                'pm_ra': r"$\mu_{\alpha}$ [mas/yr]",
+                'pm_dec': r"$\mu_{\delta}$ [mas/yr]",
+                'parallax':  r"$\varpi$ [mas]",
+                'log_parallax': r"$\log{\varpi}$ [mas]",
+                'p': r"${P}$ [days]",
+                'log_p':  r"$\log{P}$ [days]",
+                'ecc': r"$e$",
+                'phi': r"$\phi$",
+                'a0': r"$a_0$ [mas]",
+                'log_a0': r"$\log{a_0}$ [mas]",
+                'Omega': r"$\Omega$",
+                'omega': r"$\omega$",
+                'cosi': r"$\cos{i}$",
+                'mp': r"$M_P$ [$M_J$]",
+                'log_mp': r"$\log{M_P}$ [$M_J$]",
+                'A_in_mas': r"A [mas]",
+                'B_in_mas':  r"B [mas]",
+                'F_in_mas': r"F [mas]",
+                'G_in_mas': r"G [mas]",
+                'sma': r"$a$ [AU]"
+            }
+    if param_name in latex_labels.keys():
+        return latex_labels[param_name]
+    elif extra_labels is not None:
+        if param_name in extra_labels.keys():
+            return extra_labels[param_name]
+        else:
+            print(f"{param_name} does not have a corresponding latex label. Use kwarg extra_labels to add dictionary of desired label.")
+            return param_name
+    else:
+        print(f"{param_name} does not have a corresponding latex label. Use kwarg extra_labels to add dictionary of desired label.")
+        return param_name
 
-        latex_labels = {
-            'delta_ra':  r"$\Delta\alpha$ [mas]",
-            'delta_dec':  r"$\Delta\delta$ [mas]",
-            'pm_ra': r"$\mu_{\alpha}$ [mas/yr]",
-            'pm_dec': r"$\mu_{\delta}$ [mas/yr]",
-            'parallax':  r"$\varpi$ [mas]",
-            'log_parallax': r"$\log{\varpi}$ [mas]",
-            'p': r"${P}$ [days]",
-            'log_p':  r"$\log{P}$ [days]",
-            'ecc': r"$e$",
-            'phi': r"$\phi$",
-            'a0': r"$a_0$ [mas]",
-            'log_a0': r"$\log{a_0}$ [mas]",
-            'Omega': r"$\Omega$",
-            'omega': r"$\omega$",
-            'cosi': r"$\cos{i}$",
-            'mp': r"$M_P$ [$M_J$]",
-            'A_in_mas': r"A [mas]",
-            'B_in_mas':  r"B [mas]",
-            'F_in_mas': r"F [mas]",
-            'G_in_mas': r"G [mas]"
-        }
+def generate_corner_plot(idata, model='binary', plot_list=None, fig=None, use_campbell=True, true_vals=None, initvals=None, dpi=600, extra_labels=None):
+        posterior = idata.posterior 
 
         if plot_list is None:
             if model == 'binary': 
@@ -111,7 +127,7 @@ def generate_corner_plot(idata, model='binary', plot_list=None, fig=None, use_ca
             elif model == 'single':
                 plot_list = ['delta_ra', 'delta_dec', 'pm_ra', 'pm_dec', 'parallax']
 
-        labels = [latex_labels[param_name] for param_name in plot_list]
+        labels = [get_latex_label(param_name, extra_labels=extra_labels) for param_name in plot_list]
 
         corner_kwargs = dict(
                         labels=labels,
@@ -237,7 +253,7 @@ def get_position(t_binned, p, ecc, phi, A, B, F, G):
     b_dec = B*X + G*Y
     return b_ra, b_dec
 
-def plot_posterior_orbits(enhanced_idata, t_binned, ax=None, dpi=600, plot_transits=True):
+def plot_posterior_orbits(enhanced_idata, t_binned, ax=None, dpi=600, plot_transits=True, true_vals=None):
         if ax is None:
             fig, ax = plt.subplots(figsize=(6,6), dpi=dpi)
 
@@ -277,6 +293,12 @@ def plot_posterior_orbits(enhanced_idata, t_binned, ax=None, dpi=600, plot_trans
         ax.set_xlabel(r'$\Delta\alpha\cos\delta$ [mas]')
         ax.set_ylabel(r'$\Delta\delta$ [mas]')
 
+        if true_vals is not None:
+            b_ra_true, b_dec_true = get_position(np.linspace(0, 1.1 * true_vals['p'], 1000), true_vals['p'], true_vals['ecc'], true_vals['phi'], 
+                                       true_vals['A_in_mas'], true_vals['B_in_mas'], true_vals['F_in_mas'], true_vals['G_in_mas'])
+
+            ax.plot(b_ra_true, b_dec_true, lw=2, color='lime', zorder=1000, label='true')
+
         #ax.invert_xaxis()
         ax.set_aspect('equal')
         ax.set_title("Posterior-Sampled Sky-Plane Orbit")
@@ -291,6 +313,7 @@ def plot_posterior_orbits(enhanced_idata, t_binned, ax=None, dpi=600, plot_trans
             cbar = ax.figure.colorbar(sm, cax=cax)
             #, fraction=0.046, pad=0.04
             cbar.set_label('Time [BJD]') 
+        ax.legend()
 
 
 def summary_plot(cwd, sourceID, jobID, mstar, ra, dec, t_binned, w_binned, sig_w_binned, dpi=150):

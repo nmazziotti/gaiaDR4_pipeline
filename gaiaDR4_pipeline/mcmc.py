@@ -539,14 +539,21 @@ def process_idata(idata, mstar, model='binary'):
 
     if model == 'binary':
         if "mp" not in avail_vars:
-            a0_AU = processed_idata.posterior['a0'].values / processed_idata.posterior['parallax'].values
+            if "a0_AU" not in avail_vars:
+                a0_AU = processed_idata.posterior['a0'].values / processed_idata.posterior['parallax'].values
+                processed_idata.posterior['a0_AU'] = (("chain", "draw"), a0_AU)
+                processed_idata.posterior['log_a0_AU'] = (("chain", "draw"), np.log(a0_AU))
+            else:
+                a0_AU = processed_idata.posterior['a0_AU'].values
+
             if 'log_a0' not in avail_vars:
                 processed_idata.posterior['log_a0'] = (("chain", "draw"), np.log(processed_idata.posterior['a0'].values))
             mp = utils.solve_planet_mass(mstar, processed_idata.posterior['p'].values, a0_AU)
             processed_idata.posterior['mp'] = (("chain", "draw"), mp * 1047.57)
             processed_idata.posterior['log_mp'] = (("chain", "draw"), np.log(mp * 1047.57))
 
-            sma = (mstar + mp)**(1/3) * (processed_idata.posterior['p'].values/365.25)**(2/3)
+            sma = a0_AU * (mstar/mp + 1)
+            # (mstar + mp)**(1/3) * (processed_idata.posterior['p'].values/365.25)**(2/3)
             processed_idata.posterior['sma'] = (("chain", "draw"), sma)
 
         if "omega" not in avail_vars:
